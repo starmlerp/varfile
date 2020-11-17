@@ -1,4 +1,4 @@
-#include "varFileControl.h"
+#include "varfile.h"
 
 VarFile::VarFile(const char* fpathi){
 	fpath=(char*)fpathi;
@@ -30,7 +30,7 @@ int VarFile::get(const std::string& name, int* target){
 	fclose(file);
 	return 1;
 }
-int VarFile::get(const std::string name&, float* target){
+int VarFile::get(const std::string& name, float* target){
 	FILE* file = fopen(fpath, "r");
 	int c;
 	std::string word;
@@ -53,31 +53,28 @@ int VarFile::get(const std::string name&, float* target){
 	fclose(file);
 	return 1;
 };
-int VarFile::get(const std::string name&, char** target){
+int VarFile::get(const std::string& name, char** target){
 	return 0;
 };
 
-int VarFile::set(const std::string name&, const int target){
+int VarFile::set(const std::string& name, const int target){
 	FILE* file = fopen(fpath, "r+");
 	int c;
 	std::string word;
 	do{
 		c=fgetc(file);
-		if(c==(int)'\n' || c==EOF || c==' '){
+		if(c==(int)'\n' || c==EOF || c==(int)' '){
 			if(word==name){
-				char buf=nullptr;
-				word=="";
-				size_t len;
-				int tarh=target;
-				for(len=0;tarh>0;len++)tarh=tarh/10;
-				size_t inspos=ftell(file);
-				fseek(file, 0, SEEK_END);
-				fseek(file, inspos, SEEK_SET);
-				while(c!=(int)'\n' || c!=EOF)c=fgetc(file);
-				buf=new char[ftell(file)-inspos];
-				fseek();
-				fread(buf, );
-				
+				word="";
+				size_t ins=ftell(file);
+				do{c=fgetc(file);}while(c!=(int)'\n' || c!=EOF || c!=(int)' ');//find the point at which targeted entry ends
+				size_t hold=ftell(file);
+				fseek(file, 0L, SEEK_END);
+				char* buf=new char[ftell(file)-hold];//set the buffer size to the length after the data pointed to until the end of file
+				fseek(file, hold, SEEK_SET);
+				fread(buf, sizeof(buf), 1, file);//store the entries coming after the targeted entry
+				fseek(file, 0L, ins);
+				fprintf(file, "%d\n%s", target, buf);
 			}
 			word="";
 		}
@@ -91,9 +88,9 @@ int VarFile::set(const std::string name&, const int target){
 	fclose(file);
 	return 0;
 };
-int VarFile::set(const std::string name&, const float target){
+int VarFile::set(const std::string& name, const float target){
 	return 0;
 };
-int VarFile::set(const std::string name&, const char* target){
+int VarFile::set(const std::string& name, const char* target){
 	return 0;
 };
