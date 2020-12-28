@@ -71,40 +71,43 @@ int VarFile::set(const char* name, const int target){
 	int c;
 	size_t wsize=0;
 	size_t tsize;
-	for(tsize=0;target[tsize];tsize++);
+	for(tsize=0;name[tsize];tsize++);
 	char* word;
 	do{
 		c=fgetc(file);//read a single character
 		if((c==(int)'\n' || c==EOF || c==(int)' ')){//if its newline, end of file, of spacing
 			if(wsize==tsize){
 				int cmpwrd=1;
-				for(int i=0; cmpwrd && i<wsize; i++)cmpwrd=word[i]==target[i];//compare the 2 strings
+				for(int i=0; cmpwrd && i<wsize; i++)cmpwrd=word[i]==name[i];//compare the 2 strings
 				if(cmpwrd){
-					free(word);
+					if(wsize)free(word);
 					size_t ins=ftell(file);
-					do{c=fgetc(file);}while(c!=(int)'\n' || c!=EOF || c!=(int)' ');//find the point at which targeted entry ends
+					do{c=fgetc(file);}while(c!=(int)'\n' && c!=EOF && c!=(int)' ');//find the point at which targeted entry ends
 					size_t hold=ftell(file);
 					fseek(file, 0L, SEEK_END);
-					char* buf=(char*)malloc[ftell(file)-hold];//set the buffer size to the length after the data pointed to until the end of file
+					size_t fsize = ftell(file);
+					char* buf=(char*)malloc[fsize-hold];//set the buffer size to the length after the data pointed to until the end of file
 					fseek(file, hold, SEEK_SET);
 					fread(buf, sizeof(buf), 1, file);//store the entries coming after the targeted entry
 					fseek(file, 0L, ins);
 					fprintf(file, "%d\n%s", target, buf);
+					fclose(file);
+					return 0;
 				}
 			}
-			free(word);
+			if(wsize)free(word);
+			wsize=0;
 		}
-		else{ 
-			char* holder=NULL;
-			initarray(holder, wsize+1);
+		else{
+			char* holder=(char*)malloc(wsize+1);
+			
 			for(int i=0; i<wsize; i++)holder[i]=word[i];//copy word into holder
-			holder[++wsize]=(char)c;//add the read character
-			free(word);//deallocate word
+			holder[wsize++]=(char)c;//add the read character
+			if(wsize-1>0)free(word);//deallocate word
 			word=holder;//put the location of holder array into word
 		}
 
 	}while(c!=EOF);
-	char* out;
 	fseek(file, 0, SEEK_END);
 	fprintf(file, "%s %d\n",name, target);
 	fclose(file);

@@ -5,7 +5,7 @@
 
 class VarFile{
 	char* fpath;
-	void initarray(const void* ptr);
+//	void initarray(const void* ptr);
 	public:
 	VarFile(const char* fpathi);
 	char* path();
