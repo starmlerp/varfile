@@ -1,0 +1,4 @@
+Note to self:
+Currently, the Varfile::set functions are only searching for the position of the word following the string matched as the seeked variable.
+Aside from this concept itself needing to be futher debugged, it is highly untrustworthy, since the library always assumes such order, without checking for it
+two solutions for that would be to add better syntax rules, of add better checks, namely to help distinguish between float and int values.

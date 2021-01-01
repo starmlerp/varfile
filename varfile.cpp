@@ -86,7 +86,7 @@ int VarFile::set(const char* name, const int target){
 					size_t hold=ftell(file);
 					fseek(file, 0L, SEEK_END);
 					size_t fsize = ftell(file);
-					char* buf=(char*)malloc[fsize-hold];//set the buffer size to the length after the data pointed to until the end of file
+					char* buf=(char*)malloc(fsize-hold);//set the buffer size to the length after the data pointed to until the end of file
 					fseek(file, hold, SEEK_SET);
 					fread(buf, sizeof(buf), 1, file);//store the entries coming after the targeted entry
 					fseek(file, 0L, ins);
