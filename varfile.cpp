@@ -9,13 +9,6 @@ VarFile::VarFile(const char* fpathi){
 char* VarFile::path(){
 	return fpath;
 }
-/*
-void initarray(void* ptr, size_t size){
-	if(ptr!=NULL)free(ptr);
-	ptr=malloc(size+1);
-	ptr[size]=NULL;
-}
-*/
 int VarFile::get(const std::string& name, int* target){
 	FILE* file = fopen(fpath, "r");
 	int c;
