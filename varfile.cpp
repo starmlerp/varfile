@@ -1,6 +1,7 @@
 #include "varfile.h"
 
 VarFile::VarFile(const char* fpathi){
+	assert((fpathi != NULL, "input file path must not be null"));
 	fpath=(char*)fpathi;
 	FILE* f=fopen(fpath, "r");
 	if(f==NULL)f=fopen(fpath, "w");
@@ -68,7 +69,7 @@ int VarFile::set(const char* name, const int target){
 	char* word;
 	do{
 		c=fgetc(file);//read a single character
-		if((c==(int)'\n' || c==EOF || c==(int)' ')){//if its newline, end of file, of spacing
+		if((c==(int)'\n' || c==EOF || c==(int)' ')){//if its newline, end of file, or spacing
 			if(wsize==tsize){
 				int cmpwrd=1;
 				for(int i=0; cmpwrd && i<wsize; i++)cmpwrd=word[i]==name[i];//compare the 2 strings

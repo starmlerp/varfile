@@ -1,6 +1,7 @@
 #ifndef VARFILECONTROL_H
 #define VARFILECONTROL_H
 #include <stdio.h>
+#include <cassert>
 #include <string>
 
 class VarFile{
