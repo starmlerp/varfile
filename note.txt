@@ -1,4 +1,25 @@
 Note to self:
-Currently, the Varfile::set functions are only searching for the position of the word following the string matched as the seeked variable.
-Aside from this concept itself needing to be futher debugged, it is highly untrustworthy, since the library always assumes such order, without checking for it
-two solutions for that would be to add better syntax rules, of add better checks, namely to help distinguish between float and int values.
+varfile ought to firstly load the file into memory as a datatree, and fetch data from it further on
+
+IDEA: files should be written as:
+	foo = bar;
+where "foo" is the variable name, and "bar" is its contents, both always read in as char*
+semicolons should always signalize the end of expression aka. expression is terminated by semicolon, not a newline
+eg.
+	foo
+	=bar
+	;
+is a valid expression
+unlike expressions, comments are going to be newline terminated, eg.
+	foo //this is a comment
+	=bar;
+here, "this is a comment" is ignored and not seen as a part of expression
+semicolon is non-terminating if it is preceeded by a single quote, eg.
+	foo = "bar;"
+is an invalid expression, but
+	foo = "bar;";
+isnt
+
+equation signs and quotes are to be preceeded by a backslash if not part of an expression:
+	foo = "foo \= \"bar\"";
+contents of foo will be precieved as "foo = "bar""

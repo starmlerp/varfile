@@ -1,16 +1,27 @@
+//#define _DATANODE_H_ //dirty dirty fix
 #include "varfile.h"
 
-VarFile::VarFile(const char* fpathi){
-	assert((fpathi != NULL, "input file path must not be null"));
-	fpath=(char*)fpathi;
-	FILE* f=fopen(fpath, "r");
-	if(f==NULL)f=fopen(fpath, "w");
-	fclose(f);
+void VarFile::path(const char* _fpath){
+	if(_fpath != NULL){
+		fpath=(char*)_fpath;
+		FILE* f=fopen(fpath, "r");
+		if(f==NULL)f=fopen(fpath, "w");
+		fclose(f);
+	}
+}
+
+VarFile::VarFile(const char* _fpath){
+	path(_fpath);
 }
 char* VarFile::path(){
 	return fpath;
 }
-int VarFile::get(const std::string& name, int* target){
+
+int load(const datanode* tree){
+	//TODO: load the file into the datanode as a tree, as described in note.txt
+}
+/*
+int VarFile::get(const char* name, int* target){
 	FILE* file = fopen(fpath, "r");
 	int c;
 	std::string word;
@@ -33,7 +44,7 @@ int VarFile::get(const std::string& name, int* target){
 	fclose(file);
 	return 1;
 }
-int VarFile::get(const std::string& name, float* target){
+int VarFile::get(const char* name, float* target){
 	FILE* file = fopen(fpath, "r");
 	int c;
 	std::string word;
@@ -56,7 +67,7 @@ int VarFile::get(const std::string& name, float* target){
 	fclose(file);
 	return 1;
 };
-int VarFile::get(const std::string& name, char** target){
+int VarFile::get(const char* name, char** target){
 	return 0;
 };
 
@@ -107,9 +118,10 @@ int VarFile::set(const char* name, const int target){
 	fclose(file);
 	return 0;
 };
-int VarFile::set(const std::string& name, const float target){
+int VarFile::set(const char* name, const float target){
 	return 0;
 };
-int VarFile::set(const std::string& name, const char* target){
+int VarFile::set(const char* name, const char* target){
 	return 0;
 };
+*/
