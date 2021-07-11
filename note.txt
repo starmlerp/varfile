@@ -1,10 +1,12 @@
 Note to self:
-varfile ought to firstly load the file into memory as a datatree, and fetch data from it further on
-
+varfile ought to firstly load the file into memory as a datatree, and fetch
+data from it further on
+-------------------------------------------------------------------------------
 IDEA: files should be written as:
 	foo = bar;
-where "foo" is the variable name, and "bar" is its contents, both always read in as char*
-semicolons should always signalize the end of expression aka. expression is terminated by semicolon, not a newline
+where "foo" is the variable name, and "bar" is its contents, both always read
+in as char* semicolons should always signalize the end of expression aka.
+expression is terminated by semicolon, not a newline
 eg.
 	foo
 	=bar
@@ -20,6 +22,12 @@ is an invalid expression, but
 	foo = "bar;";
 isnt
 
-equation signs and quotes are to be preceeded by a backslash if not part of an expression:
+equation signs and quotes are to be preceeded by a backslash if not part of an
+expression: 
 	foo = "foo \= \"bar\"";
 contents of foo will be precieved as "foo = "bar""
+-------------------------------------------------------------------------------
+ok, as it turns out, there is not clean way to have this library depend on
+datanode library. one way to overcome this is to have the varfile library only
+parse for requested symbols on demand, and have the rest of abstraction process
+be done on the frontend of game engine.
