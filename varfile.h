@@ -3,8 +3,8 @@
 #include <stdio.h>
 
 namespace avf{
-	struct Index{
-//		public:
+	class Index{
+		public:
 		char* word;
 		unsigned long* pos;
 	};
