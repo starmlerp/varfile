@@ -23,7 +23,7 @@ class Index{
 	unsigned long* pos;
 };
 ``` 
-Library functions use this class to create and increase performance during
+Library functions use this class to create file indices and increase performance during
 parsing of larger files
 ### functions
 ```c++
