@@ -40,4 +40,8 @@ in parsing of the filestream.
 It is reccomended to recreate index each time the program which the library is used
 in is started, in case the file has been manually edited by the user.
 
+## contributing
 
+Feel free to open an issue. If you want to add a feature, firstly open an issue to discuss it, then make a pull request.
+
+If you have any questions, feel free to ask them in the form of an issue, but firstly look if it was already answered.
