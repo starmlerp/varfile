@@ -7,6 +7,7 @@ namespace avf{
 		public:
 		char* word;
 		unsigned long* pos;
+		//Index(unsigned long wlen, unsigned long plen);
 	};
 	Index* index(FILE* target, short wlen);
 	

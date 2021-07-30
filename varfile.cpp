@@ -1,42 +1,71 @@
-//#define _DATANODE_H_ //dirty dirty fix
 #include "varfile.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 avf::Index* avf::index(FILE* target, short wlen){
 	rewind(target);
-	unsigned long elen = 0;
-	while(!feof(target)){
-		//record the number of times we encounter ";", essentially counting the number of entries we are dealing with
-		//TODO: make proper parsing
-		if(fgetc(target)==';')elen++;
-	}
-	#ifdef DEBUG 
-		printf("%l", elen);
-	#endif
-	avf::Index* index = new avf::Index[1]; //initialize index struct
-	index[0].word = 0;
-	rewind(target);
+		
+	avf::Index* index = new avf::Index[1]; // initialize index struct
+	index[0].word = NULL;
+	index[0].pos  = NULL;
+	//TODO: implement proper parsing to detect invalid variable names (starting with numbers, including non-aphlanumerical characters etc.)
+	
 	if(wlen > 0){
-		for(unsigned long i = 0; i < elen; i++){
-			char w[wlen];
-			char neutralizer = 1;
-			for(short j = 0; j < wlen; j++){
-				w[j]=fgetc(target);
-				netralizer *= w[j] >= 97 || w[j] <= 122;
-				//^checks if the fetched character is a lowercase letter
-				//ASCII: a = 97, z = 122
-				//otherwise stop recording from stream, by making every next entry NULL
-				w[j]*=neutralizer;
+		enum States{// we shall represent states using enums and switch-cases
+			SK, // seek for the next identifier
+			ID, // identifier
+			CR, // correlator 
+			OB, // object
+			CM  // comment
+		};;
+		States state = SK;
+		long line=0;
+		unsigned long insize=0;
+		unsigned long tracker=0;
+		char* instr;
 
-			}
-			for(unsigned long j = 0; index[j].word; j++){ //append through the index...
-				short isEntry = 1;
-				for(short k = 0; k < wlen; k++){
-					isEntry *= w[k] == index[j].word[k];
-				}
-				if(isEntry){ //if the word from current entry matches index entry
-					
-				}
+		while(true){
+			// we are entering an infinite loop, since the following code is going to be implemented as a state machine
+			// the loop is going to be broken on a return call
+			char inC = fgetc(target);
+			switch(state){
+				
+
+				case SK:
+					if(inC == '\n'){
+						line++;// keep track of lines, will be used on displaying errors
+						break;
+					}
+					if(inC == ' ')break;// proceed if its space
+					else {
+						state=ID;
+						tracker = ftell(target);
+					}// otherwise assume we reached an identifier
+				
+
+				case ID:
+					if(insize==2){
+						if(instr[0]=='/' && instr[1]=='/'){// if the input appears to be a start of comment
+							state=CM;// mark it as such
+							break;
+						}
+					}
+					if(inC >= 'A' && inC <= 'Z' || inC >= 'a' && inC <= 'z' || inC >= '0' && inC <= '9'){// if its an alphanumerical character
+						char* holder = new char[++insize];// add it to the checking stream
+						for(unsigned long i = 0; i < insize-1;i++)holder[i]=instr[i];
+						holder[insize]=inC;
+						if(insize-1 > 0)free(instr);
+						instr=holder;//dirty dirty append
+					}
+					else {
+						free(index);
+						index = new avf::Index[1];
+						index[0].word = new char[1];
+						index[0].word[0]=0;
+						index[0].pos = (unsigned long*) new char[200];
+						sprintf((char*)index[0].pos, "line %ld: invalid character in variable declaration\n", line);
+						return index;
+					}
 			}
 		}
 	}
