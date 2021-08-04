@@ -3,19 +3,21 @@
 #include <stdio.h>
 
 namespace avf{
-	class Index{
+	class Entry{
 		public:
-		char* word;
-		unsigned long* pos;
-		//Index(unsigned long wlen, unsigned long plen);
+		char* name;
+		char* value;
+		void* parent;
 	};
-	Index* index(FILE* target, short wlen);
-	
+	Entry* load(FILE* target);
+
+	char* getEntries(FILE* target);
+
+	char* getEntries(FILE* target, char* object);
+
 	char* get(FILE* target, char* key);
-	char* get(FILE* target, char* key, Index* index);
 	
 	int put(FILE* target, char* key, char* value);
-	int put(FILE* target, char* key, char* value, Index* index);
 	
 }
 /*
