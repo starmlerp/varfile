@@ -20,14 +20,4 @@ namespace avf{
 	int put(FILE* target, char* key, char* value);
 	
 }
-/*
-class VarFile{
-	char* fpath=NULL;
-	public:
-	void path(const char* _fpath);
-	VarFile(const char* _fpath);
-	char* path();
-	int load(const adn::datanode* tree);
-};
-*/
 #endif

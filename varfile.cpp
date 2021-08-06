@@ -3,15 +3,12 @@
 #include <stdlib.h>
 
 #define CORRELATOR '='
-
-#define DEBUG
+#define TERMINATOR ';'
 
 avf::Entry* avf::load(FILE* target){
 	rewind(target);
 	
-	avf::Entry* object = new avf::Entry[1]; // initialize index struct
-	object[0].name = NULL;
-	object[0].value  = NULL;
+	avf::Entry* object = NULL;
 	//TODO: implement proper parsing to detect invalid variable names (starting with numbers, including non-aphlanumerical characters etc.)
 	
 	enum States{// we shall represent states using enums and switch-cases
@@ -40,7 +37,19 @@ avf::Entry* avf::load(FILE* target){
 		#ifdef DEBUG
 		printf("input: %c, state: %d\n", inC=='\n'?'N':inC, state);
 		#endif
-		if(inC==EOF)return object;
+		if(inC==EOF){
+			if(state==SI)return object;
+			else{
+				free(object);
+				object = new avf::Entry[1];
+				object[0].name = new char[1];
+				object[0].name[0]=0;
+				object[0].value = new char[200];
+				sprintf((char*)object[0].value, "line %ld: unexpected end-of-file\n", line);
+				object[0].value[199]=NULL;
+				return object;
+			}
+		}
 		switch(state){
 			
 			case SI:
@@ -56,6 +65,7 @@ avf::Entry* avf::load(FILE* target){
 			
 			case ID:
 				if(objnsize==2){
+					//TODO: following condition is impossible to meet. fix that
 					if(objname[0] == '/' && objname[1] == '/'){// if the input appears to be a start of comment
 						objnsize=0;
 						free(objname);
@@ -65,18 +75,22 @@ avf::Entry* avf::load(FILE* target){
 					}
 				}
 				if(inC >= 'A' && inC <= 'Z' || inC >= 'a' && inC <= 'z' || inC >= '0' && inC <= '9'){// if its an alphanumerical character
-					char* holder = new char[++objnsize];// add it to the checking stream
+					char* holder = new char[++objnsize+1];// add it to the checking stream
+					//holder is an additional character long in order to hold null terminator
 					for(unsigned long i = 0; i < objnsize-1;i++)holder[i]=objname[i];
 					holder[objnsize-1]=inC;
 					if(objnsize > 1)free(objname);
 					objname=holder;//dirty dirty append
 					#ifdef DEBUG
-					printf("object: %s (%ld)\n", objname, objnsize);
+					unsigned long debuglen;
+					for(int debuglen = 0; objname[debuglen]; ++debuglen);
+					printf("object: %s (%ld)\n", objname, debuglen++);
 					#endif
 					break;
 				}
 
 				else if(inC == ' ' || inC == CORRELATOR){//end of identifier
+					objname[objnsize]='\0';
 					state=CR;//assume we are looking for a correlator
 				}
 
@@ -129,22 +143,60 @@ avf::Entry* avf::load(FILE* target){
 				}
 			case OB:
 				if(inC >= '0' && inC <= '9'){//if our value is numeric
-					char* holder = new char[++objvsize];//apppend it
+					char* holder = new char[++objvsize+1];//apppend it
 					for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
-					holder[objvsize]=inC;
-					if(objvsize-1 > 0)free(objvalue);
+					holder[objvsize-1]=inC;
+					if(objvsize > 1)free(objvalue);
 					objvalue=holder;
 					break;
 				}
+				if(inC == TERMINATOR){
+					objvalue[objvsize]='\0';
+					state=EE;
+				}
+
 				else{
 					free(object);
 					object = new avf::Entry[1];
 					object[0].name = new char[1];
-					object[0].name[0]=0;
+					object[0].name[0] = 0;
 					object[0].value =  new char[200];
 					sprintf((char*)object[0].value, "unexpected value for %s \n", objname);
 					object[0].value[199]=NULL;
 					return object;
+				}
+			case EE:
+				if(object){
+					unsigned long outsize;
+					for(outsize = 0; object[outsize].name; ++outsize);
+					avf::Entry* holder = new avf::Entry[++outsize+1];
+					for(unsigned long i = 0; i < outsize; i++){
+						holder[i].name = object[i].name;
+						holder[i].value = object[i].value;
+						holder[i].parent = object[i].parent;
+					}
+					holder[outsize-1].name = objname;
+					holder[outsize-1].value = objvalue;
+					holder[outsize].name = NULL;
+					objname = NULL;
+					objvalue = NULL;
+					objnsize = NULL;
+					objvsize = NULL;
+					free(object);
+					object = holder;//append the scanned values to output list
+					state = SI; //rinse and repeat
+				}
+				else {
+					//if no entries have been recorded yet, just transfer ownership and reset placeholder variables
+					object = new avf::Entry[2];
+					object[0].name = objname;
+					object[0].value = objvalue;
+					object[1].name = NULL;
+					objname = NULL;
+					objvalue = NULL;
+					objnsize = 0;
+					objvsize = 0;
+					state = SI; //rinse and repeat 
 				}
 		}
 	}
