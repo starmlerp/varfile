@@ -37,6 +37,7 @@ avf::Entry* avf::load(FILE* target){
 		#ifdef DEBUG
 		printf("input: %c, state: %d\n", inC=='\n'?'N':inC, state);
 		#endif
+		if(inC=='\n')line++;//keep track of lines, will be used to display errors
 		if(inC==EOF){
 			if(state==SI)return object;
 			else{
@@ -53,10 +54,7 @@ avf::Entry* avf::load(FILE* target){
 		switch(state){
 			
 			case SI:
-				if(inC == '\n'){
-					line++;// keep track of lines, will be used on displaying errors
-					break;
-				}
+				if(inC == '\n')break;
 				if(inC == ' ')break;// proceed if its space
 				else {
 					state = ID;
@@ -94,10 +92,6 @@ avf::Entry* avf::load(FILE* target){
 					state=CR;//assume we are looking for a correlator
 				}
 
-				else if(inC == '\n'){
-					line++;
-				}
-
 				else {
 					free(object);
 					object = new avf::Entry[1];
@@ -113,13 +107,10 @@ avf::Entry* avf::load(FILE* target){
 					state = SB;
 					break;
 				}
-				if(inC == '\n'){
-					line++;
-					break;
-				}
-				if(inC == ' '){
-					break;
-				}
+
+				if(inC == '\n')break;
+				if(inC == ' ')break;
+				
 				else {
 					free(object);
 					object = new avf::Entry[1];
@@ -131,16 +122,8 @@ avf::Entry* avf::load(FILE* target){
 					return object;
 				}
 			case SB:
-				if(inC == ' '){
-					break;
-				}
-				if(inC == '\n'){
-					line++;
-					break;
-				}//ignore anything that could not be an object
-				else{
-					state = OB;
-				}
+				if(inC == ' ' || inC == '\n')break;//ignore anything that could not be an object
+				else state = OB;
 			case OB:
 				if(inC >= '0' && inC <= '9'){//if our value is numeric
 					char* holder = new char[++objvsize+1];//apppend it
@@ -161,7 +144,7 @@ avf::Entry* avf::load(FILE* target){
 					object[0].name = new char[1];
 					object[0].name[0] = 0;
 					object[0].value =  new char[200];
-					sprintf((char*)object[0].value, "unexpected value for %s \n", objname);
+					sprintf((char*)object[0].value, "line %ld: unexpected value for %s \n", line, objname);
 					object[0].value[199]=NULL;
 					return object;
 				}

@@ -27,7 +27,4 @@ expression:
 	foo = "foo \= \"bar\"";
 contents of foo will be precieved as "foo = "bar""
 -------------------------------------------------------------------------------
-ok, as it turns out, there is not clean way to have this library depend on
-datanode library. one way to overcome this is to have the varfile library only
-parse for requested symbols on demand, and have the rest of abstraction process
-be done on the frontend of game engine.
+TODO: make the code be less newline and space sensitive
