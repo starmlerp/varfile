@@ -133,11 +133,15 @@ avf::Entry* avf::load(FILE* target){
 					objvalue=holder;
 					break;
 				}
+				else{
+					objvalue[objvsize]='\0';
+					state = EE;
+				}
+/*
 				if(inC == TERMINATOR){
 					objvalue[objvsize]='\0';
 					state=EE;
 				}
-
 				else{
 					free(object);
 					object = new avf::Entry[1];
@@ -148,38 +152,55 @@ avf::Entry* avf::load(FILE* target){
 					object[0].value[199]=NULL;
 					return object;
 				}
+*/
 			case EE:
-				if(object){
-					unsigned long outsize;
-					for(outsize = 0; object[outsize].name; ++outsize);
-					avf::Entry* holder = new avf::Entry[++outsize+1];
-					for(unsigned long i = 0; i < outsize; i++){
-						holder[i].name = object[i].name;
-						holder[i].value = object[i].value;
-						holder[i].parent = object[i].parent;
-					}
-					holder[outsize-1].name = objname;
-					holder[outsize-1].value = objvalue;
-					holder[outsize].name = NULL;
-					objname = NULL;
-					objvalue = NULL;
-					objnsize = NULL;
-					objvsize = NULL;
-					free(object);
-					object = holder;//append the scanned values to output list
-					state = SI; //rinse and repeat
+				if(inC == ' ' || inC =='\n'){
+					break;
 				}
-				else {
-					//if no entries have been recorded yet, just transfer ownership and reset placeholder variables
-					object = new avf::Entry[2];
-					object[0].name = objname;
-					object[0].value = objvalue;
-					object[1].name = NULL;
-					objname = NULL;
-					objvalue = NULL;
-					objnsize = 0;
-					objvsize = 0;
-					state = SI; //rinse and repeat 
+				else if(inC == TERMINATOR){
+					if(object){
+						unsigned long outsize;
+						for(outsize = 0; object[outsize].name; ++outsize);
+						avf::Entry* holder = new avf::Entry[++outsize+1];
+						for(unsigned long i = 0; i < outsize; i++){
+							holder[i].name = object[i].name;
+							holder[i].value = object[i].value;
+							holder[i].parent = object[i].parent;
+						}
+						holder[outsize-1].name = objname;
+						holder[outsize-1].value = objvalue;
+						holder[outsize].name = NULL;
+						objname = NULL;
+						objvalue = NULL;
+						objnsize = NULL;
+						objvsize = NULL;
+						free(object);
+						object = holder;//append the scanned values to output list
+						state = SI; //rinse and repeat
+					}
+					else {
+						//if no entries have been recorded yet, just transfer ownership and reset placeholder variables
+						object = new avf::Entry[2];
+						object[0].name = objname;
+						object[0].value = objvalue;
+						object[1].name = NULL;
+						objname = NULL;
+						objvalue = NULL;
+						objnsize = 0;
+						objvsize = 0;
+						state = SI; //rinse and repeat 
+					}
+					break;
+				}
+				else{
+					free(object);
+					object = new avf::Entry[1];
+					object[0].name = new char[1];
+					object[0].name[0] = 0;
+					object[0].value =  new char[200];
+					sprintf((char*)object[0].value, "line %ld: unexpected value for %s \n", line, objname);
+					object[0].value[199]=NULL;
+					return object;
 				}
 		}
 	}
