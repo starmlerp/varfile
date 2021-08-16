@@ -11,9 +11,7 @@ namespace avf{
 	};
 	Entry* load(FILE* target);
 
-	char* getEntries(FILE* target);
-
-	char* getEntries(FILE* target, char* object);
+	unsigned long write(FILE* target, Entry* values);
 
 	char* get(FILE* target, char* key);
 	
