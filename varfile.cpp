@@ -1,15 +1,23 @@
 #include "varfile.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stack>
 
+#define FRIVOLOUS " \n\t" //list of symbols parser should ingore entirely
 #define CORRELATOR '='
 #define TERMINATOR ';'
 #define QUOTE '\"'
+#define BRACKETS "{}"
+
+int isFrivolous(char inT){//this is a private function, neccesary only for the function of this library, as such it is not neccesary to make it visible to the main code
+	for(unsigned long i=0; i < sizeof(FRIVOLOUS); i++)if(inT == FRIVOLOUS[i])return 1;
+	return 0;
+}
 
 avf::Entry* avf::load(FILE* target){
 	rewind(target);
-	
-	avf::Entry* object = NULL;
+	avf::Entry* object = new avf::Entry[1];
+	object[0].name = NULL;
 	//TODO: implement proper parsing to detect invalid variable names (starting with numbers, including non-aphlanumerical characters etc.)
 	
 	enum States{// we shall represent states using enums and switch-cases
@@ -22,18 +30,18 @@ avf::Entry* avf::load(FILE* target){
 		OV, // value
 		QU, // quote
 		QE, // escaped character in quotes
-		RF, // object reference
+		BL, // block (defines multi member objects)
 		CM // comment
 	};;
 	States state = SI;
 
 	long line=1;
+	// element holder values
 	unsigned long objnsize=0;
 	unsigned long objvsize=0;
-	unsigned long tracker=0;
 	char* objname;
-	char* objvalue;
-	
+	char* objvalue; 	
+	std::stack<avf::Entry*> objects;	
 	while(true){
 		// we are entering an infinite loop, since the following code is going to be implemented as a state machine
 		// the loop is going to be broken on a return call
@@ -58,13 +66,14 @@ avf::Entry* avf::load(FILE* target){
 			}
 		}
 		switch(state){
-			
 			case SI:
-				if(inC == '\n')break;
-				if(inC == ' ')break;// proceed if its space
+				if(isFrivolous(inC))break;
+				else if(inC == BRACKETS[1]){
+					objects.pop();
+					break;
+				}
 				else {
 					state = ID;
-					tracker = ftell(target);
 				}// otherwise assume we reached an identifier
 			
 			case ID:
@@ -88,7 +97,7 @@ avf::Entry* avf::load(FILE* target){
 					break;
 				}
 
-				else if(inC == ' ' || inC == CORRELATOR){//end of identifier
+				else if(isFrivolous(inC)){//end of identifier
 					objname[objnsize]='\0';
 					state=CR;//assume we are looking for a correlator
 				}
@@ -108,9 +117,33 @@ avf::Entry* avf::load(FILE* target){
 					state = SV;
 					break;
 				}
+				
+				else if(inC == BRACKETS[0]){
+					unsigned long outsize;
+					for(outsize = 0; object[outsize].name; ++outsize);
 
-				if(inC == '\n')break;
-				if(inC == ' ')break;
+					avf::Entry* holder = new avf::Entry[++outsize+1];
+					for(unsigned long i = 0; i < outsize; i++){
+						holder[i].name = object[i].name;
+						holder[i].value = object[i].value;
+						holder[i].parent = object[i].parent;
+					}
+					holder[outsize-1].name = objname;
+					holder[outsize-1].value = NULL;
+					holder[outsize].name = NULL;
+					objname = NULL;
+					objnsize = 0;
+					free(object);
+					object = holder;//append the scanned values to output list
+					//NOTE: code above is a modified copy-paste from the EE state, mostly because we just need to create a new entry
+					if(!objects.empty())object[outsize-1].parent=objects.top(); // if theres something in the stack, put it in as a parent
+					else object[outsize-1].parent = NULL;
+					objects.push(&object[outsize-1]);
+					state = SI; // rinse and repeat
+					break;
+				}
+
+				else if(isFrivolous(inC))break;
 				
 				else {
 					free(object);
@@ -123,7 +156,7 @@ avf::Entry* avf::load(FILE* target){
 					return object;
 				}
 			case SV:
-				if(inC == ' ' || inC == '\n')break; // ignore anything that could not be an object
+				if(isFrivolous(inC))break; // ignore anything that could not be an object
 				else if(inC == '\"'){
 					state = QU;
 					break;
@@ -145,7 +178,7 @@ avf::Entry* avf::load(FILE* target){
 					break;
 				}
 
-				else if(inC == ' ' || inC == '\n'){
+				else if(isFrivolous(inC)){
 					break;
 				}
 				else{
@@ -165,8 +198,6 @@ avf::Entry* avf::load(FILE* target){
 				}
 				if(inC == '\\'){ // if escape sign is encountered
 					state = QE;
-					printf("state QU: %c\n", inC);
-					fflush(stdout);
 					break;
 				}
 				else {
@@ -178,8 +209,6 @@ avf::Entry* avf::load(FILE* target){
 					break;
 				}
 			case QE:{
-				printf("state QE: %c\n", inC);
-				fflush(stdout);
 				char* holder = new char[++objvsize+1]; // apppend it
 				for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
 				holder[objvsize-1]=inC;
@@ -188,8 +217,7 @@ avf::Entry* avf::load(FILE* target){
 				state = QU;
 				break;
 			}
-			case EE:
-				if(object){
+			case EE:{
 					unsigned long outsize;
 					for(outsize = 0; object[outsize].name; ++outsize);
 					avf::Entry* holder = new avf::Entry[++outsize+1];
@@ -200,6 +228,8 @@ avf::Entry* avf::load(FILE* target){
 					}
 					holder[outsize-1].name = objname;
 					holder[outsize-1].value = objvalue;
+					if(!objects.empty())holder[outsize-1].parent = objects.top();
+					else holder[outsize-1].parent = NULL;
 					holder[outsize].name = NULL;
 					objname = NULL;
 					objvalue = NULL;
@@ -207,20 +237,9 @@ avf::Entry* avf::load(FILE* target){
 					objvsize = 0;
 					free(object);
 					object = holder;//append the scanned values to output list
+					state = SI; // rinse and repeat
+					break;
 				}
-				else {
-					//if no entries have been recorded yet, just transfer ownership and reset placeholder variables
-					object = new avf::Entry[2];
-					object[0].name = objname;
-					object[0].value = objvalue;
-					object[1].name = NULL;
-					objname = NULL;
-					objvalue = NULL;
-					objnsize = 0;
-					objvsize = 0;
-				}
-				state = SI; // rinse and repeat
-				break;
 		}
 	}
 }

@@ -7,7 +7,7 @@ namespace avf{
 		public:
 		char* name;
 		char* value;
-		void* parent;
+		Entry* parent;
 	};
 	Entry* load(FILE* target);
 
