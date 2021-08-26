@@ -245,18 +245,26 @@ avf::Entry* avf::load(FILE* target){
 }
 
 unsigned long avf::write(FILE* target, avf::Entry* values){
+	unsigned long outlen = 0; // tracks the number of characters written
+
 	unsigned long Elen;
 	for(Elen = 0; values[Elen].name; Elen++);
 	
 	avf::Entry** holder = new avf::Entry*[Elen+1];//create references to the input array. they will be removed as they are being written
 	for(unsigned long i = 0; i < Elen; i++)holder[i] = &values[i];
 
-	std::stack<avf::Entry> layers;
+	std::stack<avf::Entry*> layers;
 	for(unsigned long i = 0; i < Elen; i++){
-		if(layers.empty() && !holder[i]->parent || holder[i]->parent == layers.top())
-			fprintf(target, "%s %c %s%c\n", holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+		if(holder[i]){
+			if(layers.empty() && !holder[i]->parent || holder[i]->parent == layers.top()){
+				char* tabs = new char[layers.size()+1];
+				for(unsigned long i = 0; i < layers.size(); i++)tabs[i]='\t';
+				tabs[layers.size()]='\0';
+				outlen += fprintf(target, "%s%s %c %s%c\n",tabs, holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+			}
+		}
 	}
-	return Elen;
+	return outlen;
 }
 
 char* avf::get(FILE* target, char* key){
