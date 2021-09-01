@@ -9,6 +9,8 @@
 #define QUOTE '\"'
 #define BRACKETS "{}"
 
+#define DEBUG
+
 int isFrivolous(char inT){//this is a private function, neccesary only for the function of this library, as such it is not neccesary to make it visible to the main code
 	for(unsigned long i=0; i < sizeof(FRIVOLOUS); i++)if(inT == FRIVOLOUS[i])return 1;
 	return 0;
@@ -249,20 +251,67 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 
 	unsigned long Elen;
 	for(Elen = 0; values[Elen].name; Elen++);
-	
+	#ifdef DEBUG
+	printf("%ld\n", Elen);
+	#endif
 	avf::Entry** holder = new avf::Entry*[Elen+1];//create references to the input array. they will be removed as they are being written
 	for(unsigned long i = 0; i < Elen; i++)holder[i] = &values[i];
-
+	
 	std::stack<avf::Entry*> layers;
-	for(unsigned long i = 0; i < Elen; i++){
+	unsigned long i = 0;
+	while(i < Elen || !layers.empty()){
+		#ifdef DEBUG
+		printf("elem: %ld\n", i);
+		#endif
+		char throwaway;
 		if(holder[i]){
-			if(layers.empty() && !holder[i]->parent || holder[i]->parent == layers.top()){
+			#ifdef DEBUG
+			if(!layers.empty()){
+				printf("%ld\n%ld\n", holder[i]->parent, layers.top());
+			}
+			#endif
+			scanf("%c", &throwaway);
+			if(!holder[i]->value){
+				#ifdef DEBUG
+				printf("object definition: %ld\n", holder[i]);
+				#endif
 				char* tabs = new char[layers.size()+1];
-				for(unsigned long i = 0; i < layers.size(); i++)tabs[i]='\t';
+				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+				tabs[layers.size()]='\0';
+				outlen += fprintf(target, "%s%s %c\n", tabs, holder[i]->name, BRACKETS[0]);
+				
+				layers.push(holder[i]);
+				holder[i]=NULL;
+				i = 0; //restart counting
+			}
+			else if(layers.empty() && !holder[i]->parent){//WHY IS THIS NOT WORKING???
+				outlen += fprintf(target, "%s %c %s%c\n", holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+				holder[i]=NULL;
+				i++;
+			}
+			else if( holder[i]->parent == layers.top() ){
+				printf("t1\n");
+				char* tabs = new char[layers.size()+1];
+				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
 				tabs[layers.size()]='\0';
 				outlen += fprintf(target, "%s%s %c %s%c\n",tabs, holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+				holder[i]=NULL;
+				i++;
+			}
+			if( i == Elen - 1 && !layers.empty() ){
+				layers.pop();
+				char* tabs = new char[layers.size()+1];
+				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+				tabs[layers.size()]='\0';
+				outlen += fprintf(target, "%s%c\n", tabs, BRACKETS[1]);
+				i=0;
 			}
 		}
+		else {
+			i++;
+			printf("already processed. skipping...\n");
+		}
+		fflush(target);
 	}
 	return outlen;
 }

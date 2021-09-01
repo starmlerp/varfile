@@ -43,7 +43,7 @@ of the cursor.
 library assumes stream is in read mode.
 
 ```c++
-unsigned long load(FILE* target, Entry* values);
+unsigned long write(FILE* target, Entry* values);
 ``` 
 
 Writes to the stream from the inputted `Entry*` array.
