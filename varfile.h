@@ -4,7 +4,8 @@
 
 namespace avf{
 	class Entry{
-		public:
+	public:
+		Entry() : name(NULL), value(NULL), parent(NULL) {}
 		char* name;
 		char* value;
 		Entry* parent;

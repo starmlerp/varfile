@@ -16,6 +16,24 @@ int isFrivolous(char inT){//this is a private function, neccesary only for the f
 	return 0;
 }
 
+unsigned long appendEntry(avf::Entry*& array, char* objname)
+{
+	unsigned long outsize;
+	for(outsize = 0; array[outsize].name; ++outsize);
+
+	avf::Entry* holder = new avf::Entry[++outsize+1];
+	for(unsigned long i = 0; i < outsize; i++){
+		holder[i].name = array[i].name;
+		holder[i].value = array[i].value;
+		holder[i].parent = array[i].parent ? &holder[0] + (array[i].parent - &array[0]) : NULL;
+	}
+	holder[outsize-1].name = objname;
+	holder[outsize].name = NULL;
+	delete[] array;
+	array = holder;
+	return outsize;
+}
+
 avf::Entry* avf::load(FILE* target){
 	rewind(target);
 	avf::Entry* object = new avf::Entry[1];
@@ -43,7 +61,7 @@ avf::Entry* avf::load(FILE* target){
 	unsigned long objvsize=0;
 	char* objname;
 	char* objvalue; 	
-	std::stack<avf::Entry*> objects;	
+	std::stack<unsigned long> objects;	
 	while(true){
 		// we are entering an infinite loop, since the following code is going to be implemented as a state machine
 		// the loop is going to be broken on a return call
@@ -57,7 +75,7 @@ avf::Entry* avf::load(FILE* target){
 		if(inC==EOF){
 			if(state==SI)return object;
 			else{
-				free(object);
+				delete[] object;
 				object = new avf::Entry[1];
 				object[0].name = new char[1];
 				object[0].name[0]=0;
@@ -83,7 +101,7 @@ avf::Entry* avf::load(FILE* target){
 					//TODO: following condition is impossible to meet. fix that
 					if(objname[0] == '/' && objname[1] == '/'){// if the input appears to be a start of comment
 						objnsize=0;
-						free(objname);
+						delete[] objname;
 						objname=NULL;
 						state = CM;// mark it as such
 						break;
@@ -94,7 +112,7 @@ avf::Entry* avf::load(FILE* target){
 					//holder is an additional character long in order to hold null terminator
 					for(unsigned long i = 0; i < objnsize-1;i++)holder[i]=objname[i];
 					holder[objnsize-1]=inC;
-					if(objnsize > 1)free(objname);
+					if(objnsize > 1) delete[] objname;
 					objname=holder;//dirty dirty append
 					break;
 				}
@@ -105,7 +123,7 @@ avf::Entry* avf::load(FILE* target){
 				}
 
 				else {
-					free(object);
+					delete[] object;
 					object = new avf::Entry[1];
 					object[0].name = new char[1];
 					object[0].name[0]=0;
@@ -121,26 +139,14 @@ avf::Entry* avf::load(FILE* target){
 				}
 				
 				else if(inC == BRACKETS[0]){
-					unsigned long outsize;
-					for(outsize = 0; object[outsize].name; ++outsize);
-
-					avf::Entry* holder = new avf::Entry[++outsize+1];
-					for(unsigned long i = 0; i < outsize; i++){
-						holder[i].name = object[i].name;
-						holder[i].value = object[i].value;
-						holder[i].parent = object[i].parent;
-					}
-					holder[outsize-1].name = objname;
-					holder[outsize-1].value = NULL;
-					holder[outsize].name = NULL;
+					unsigned long outsize = appendEntry(object, objname);
 					objname = NULL;
 					objnsize = 0;
-					free(object);
-					object = holder;//append the scanned values to output list
+					//append the scanned values to output list
 					//NOTE: code above is a modified copy-paste from the EE state, mostly because we just need to create a new entry
-					if(!objects.empty())object[outsize-1].parent=objects.top(); // if theres something in the stack, put it in as a parent
+					if(!objects.empty())object[outsize-1].parent=&object[objects.top()]; // if theres something in the stack, put it in as a parent
 					else object[outsize-1].parent = NULL;
-					objects.push(&object[outsize-1]);
+					objects.push(outsize-1);
 					state = SI; // rinse and repeat
 					break;
 				}
@@ -148,7 +154,7 @@ avf::Entry* avf::load(FILE* target){
 				else if(isFrivolous(inC))break;
 				
 				else {
-					free(object);
+					delete[] object;
 					object = new avf::Entry[1];
 					object[0].name = new char[1];
 					object[0].name[0]=0;
@@ -175,7 +181,7 @@ avf::Entry* avf::load(FILE* target){
 					char* holder = new char[++objvsize+1]; // apppend it
 					for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
 					holder[objvsize-1]=inC;
-					if(objvsize > 1)free(objvalue);
+					if(objvsize > 1) delete[] objvalue;
 					objvalue=holder;
 					break;
 				}
@@ -184,7 +190,7 @@ avf::Entry* avf::load(FILE* target){
 					break;
 				}
 				else{
-					free(object);
+					delete[] object;
 					object = new avf::Entry[1];
 					object[0].name = new char[1];
 					object[0].name[0] = 0;
@@ -206,7 +212,7 @@ avf::Entry* avf::load(FILE* target){
 					char* holder = new char[++objvsize+1]; // apppend it
 					for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
 					holder[objvsize-1]=inC;
-					if(objvsize > 1)free(objvalue);
+					if(objvsize > 1) delete[] objvalue;
 					objvalue=holder;
 					break;
 				}
@@ -214,31 +220,22 @@ avf::Entry* avf::load(FILE* target){
 				char* holder = new char[++objvsize+1]; // apppend it
 				for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
 				holder[objvsize-1]=inC;
-				if(objvsize > 1)free(objvalue);
+				if(objvsize > 1) delete[] objvalue;
 				objvalue=holder;
 				state = QU;
 				break;
 			}
 			case EE:{
-					unsigned long outsize;
-					for(outsize = 0; object[outsize].name; ++outsize);
-					avf::Entry* holder = new avf::Entry[++outsize+1];
-					for(unsigned long i = 0; i < outsize; i++){
-						holder[i].name = object[i].name;
-						holder[i].value = object[i].value;
-						holder[i].parent = object[i].parent;
-					}
-					holder[outsize-1].name = objname;
-					holder[outsize-1].value = objvalue;
-					if(!objects.empty())holder[outsize-1].parent = objects.top();
-					else holder[outsize-1].parent = NULL;
-					holder[outsize].name = NULL;
+					unsigned long outsize = appendEntry(object, objname);
+					object[outsize-1].value = objvalue;
+					if(!objects.empty())object[outsize-1].parent = &object[objects.top()];
+					else object[outsize-1].parent = NULL;
+					object[outsize].name = NULL;
 					objname = NULL;
 					objvalue = NULL;
 					objnsize = 0;
 					objvsize = 0;
-					free(object);
-					object = holder;//append the scanned values to output list
+					//append the scanned values to output list
 					state = SI; // rinse and repeat
 					break;
 				}
@@ -263,17 +260,17 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 		#ifdef DEBUG
 		printf("elem: %ld\n", i);
 		#endif
-		char throwaway;
 		if(holder[i]){
-			#ifdef DEBUG
+			/*#ifdef DEBUG
 			if(!layers.empty()){
 				printf("%ld\n%ld\n", holder[i]->parent, layers.top());
 			}
-			#endif
-			scanf("%c", &throwaway);
+			#endif*/
+			printf("0x%lx\n", holder[i]);
+			fflush(stdout);
 			if(!holder[i]->value){
 				#ifdef DEBUG
-				printf("object definition: %ld\n", holder[i]);
+				printf("object definition: 0x%lx\n", holder[i]);
 				#endif
 				char* tabs = new char[layers.size()+1];
 				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
@@ -281,6 +278,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 				outlen += fprintf(target, "%s%s %c\n", tabs, holder[i]->name, BRACKETS[0]);
 				
 				layers.push(holder[i]);
+				printf("0x%lx, 0x%lx\n", layers.top(), holder[i]);
 				holder[i]=NULL;
 				i = 0; //restart counting
 			}
@@ -298,7 +296,12 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 				holder[i]=NULL;
 				i++;
 			}
+			else {
+			    printf("did nothing\n");
+			    i++;
+			}
 			if( i == Elen - 1 && !layers.empty() ){
+				printf("layers.pop\n");
 				layers.pop();
 				char* tabs = new char[layers.size()+1];
 				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
