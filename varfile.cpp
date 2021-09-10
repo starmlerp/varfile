@@ -9,8 +9,6 @@
 #define QUOTE '\"'
 #define BRACKETS "{}"
 
-#define DEBUG
-
 int isFrivolous(char inT){//this is a private function, neccesary only for the function of this library, as such it is not neccesary to make it visible to the main code
 	for(unsigned long i=0; FRIVOLOUS[i]; i++)if(inT == FRIVOLOUS[i])return 1;
 	return 0;
@@ -259,44 +257,61 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 		#endif
 		if(holder[i]){
 			#ifdef DEBUG
-			if(!layers.empty()){
-				printf("%ld\n%ld\n", holder[i]->parent, layers.top());
-			}
 			char throwaway;
 			scanf("%c", &throwaway);
 			#endif
-			if(!holder[i]->value){ // if current entry has no value
-				char* tabs = new char[layers.size()+1];
-				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
-				tabs[layers.size()]='\0';
-				outlen += fprintf(target, "%s%s %c\n", tabs, holder[i]->name, BRACKETS[0]);
+			if(layers.empty() && !holder[i]->parent){
+				if(!holder[i]->value){ // if current entry has no value
+					char* tabs = new char[layers.size()+1];
+					for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+					tabs[layers.size()]='\0';
+					outlen += fprintf(target, "%s%s %c\n", tabs, holder[i]->name, BRACKETS[0]);
 				
-				layers.push(holder[i]);
-				#ifdef DEBUG
-				printf("object definition: %ld\n", holder[i]);
-				printf("%ld, %ld\n", layers.top(), holder[i]);
-				#endif
-				holder[i]=NULL;
-				i = 0; //restart counting
+					layers.push(holder[i]);
+					#ifdef DEBUG
+					printf("object definition: %ld\n", holder[i]);
+					#endif
+					holder[i]=NULL;
+					i = 0; //restart counting
+				}
+				else{
+					outlen += fprintf(target, "%s %c %s%c\n", holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+					holder[i]=NULL;
+					i++;
+				}
 			}
-			else if(layers.empty() && !holder[i]->parent){
-				outlen += fprintf(target, "%s %c %s%c\n", holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
-				holder[i]=NULL;
-				i++;
-			}
-			else if( (*holder[i]).parent == layers.top() ){//WHY IS THIS NOT WORKING???
+			else if( (*holder[i]).parent == layers.top()){
 				#ifdef DEBUG
 				printf("t1\n");
 				#endif
-				char* tabs = new char[layers.size()+1];
-				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
-				tabs[layers.size()]='\0';
-				outlen += fprintf(target, "%s%s %c %s%c\n",tabs, holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
-				holder[i]=NULL;
-				i++;
+				if(!holder[i]->value){ // if current entry has no value
+					char* tabs = new char[layers.size()+1];
+					for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+					tabs[layers.size()]='\0';
+					outlen += fprintf(target, "%s%s %c\n", tabs, holder[i]->name, BRACKETS[0]);
+				
+					layers.push(holder[i]);
+					#ifdef DEBUG
+					printf("object definition: %ld\n", holder[i]);
+					#endif
+					holder[i]=NULL;
+					i = 0; //restart counting
+				}
+				else{
+					char* tabs = new char[layers.size()+1];
+					for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+					tabs[layers.size()]='\0';
+					outlen += fprintf(target, "%s%s %c %s%c\n",tabs, holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+					holder[i]=NULL;
+					i++;
+				}
 			}
 			else i++;
 			if( i == Elen - 1 && !layers.empty() ){
+				#ifdef DEBUG
+				printf("loaded all objects in current layer. popping stack...\n");
+				#endif
+
 				layers.pop();
 				char* tabs = new char[layers.size()+1];
 				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
