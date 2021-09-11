@@ -258,6 +258,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 		if(holder[i]){
 			#ifdef DEBUG
 			char throwaway;
+			if(!layers.empty())printf("stack: %ld\n", layers.top());
 			scanf("%c", &throwaway);
 			#endif
 
@@ -284,6 +285,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 					#endif
 					layers.push(holder[i]);
 					holder[i]=NULL;
+					i = 0;
 					
 				}
 				else if(holder[i]->parent == layers.top()){
@@ -296,11 +298,12 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 					#endif
 					layers.push(holder[i]);
 					holder[i]=NULL;
+					i = 0;
 				}
-				i = 0;
+				else i++;
 			}
 
-			if( i == Elen - 1 && !layers.empty() ){
+			if( i >= Elen - 1 && !layers.empty() ){
 				#ifdef DEBUG
 				printf("loaded all objects in current layer. popping stack...\n");
 				#endif
