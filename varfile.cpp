@@ -4,8 +4,10 @@
 #include <stack>
 
 #define FRIVOLOUS " \n\t" //list of symbols parser should ingore entirely
+
 #define CORRELATOR '='
 #define TERMINATOR ';'
+#define DECIMAL '.'
 #define QUOTE '\"'
 #define BRACKETS "{}"
 
@@ -30,20 +32,22 @@ avf::Entry* avf::load(FILE* target){
 	unsigned long outpos = 0;
 	avf::Entry* object = new avf::Entry[outsize+1];
 	object[0].name = NULL;
+	object[outsize].name=NULL;
 	//TODO: implement proper parsing to detect invalid variable names (starting with numbers, including non-aphlanumerical characters etc.)
 	
 	enum States{// we shall represent states using enums and switch-cases
-		EE,  // end of entry
+		EE, // end of entry
 		SI, // seek for the next identifier
 		ID, // identifier
 		SC, // seek for the correlator
 		CR, // correlator
 		SV, // seek for the value
 		OV, // value
+		OF, //decimal part
 		QU, // quote
 		QE, // escaped character in quotes
 		BL, // block (defines multi member objects)
-		CM // comment
+		CM  // comment
 	};;
 	States state = SI;
 
@@ -167,6 +171,10 @@ avf::Entry* avf::load(FILE* target){
 				else if(inC == '\"')state = QU;
 				else {
 					state = OV;
+					objvalue = (char*)malloc(sizeof(char)+sizeof(double));//we are getting fiddly with memory, but trust me this will work
+					objvalue[0]='\0';
+					objvalue[1]=0.0;
+					//(as long as people read the documentation, that is)
 					break;
 				}
 				inC = fgetc(target);
@@ -178,11 +186,7 @@ avf::Entry* avf::load(FILE* target){
 					state=EE;
 				}
 				else if(inC >= '0' && inC <= '9'){ // if our value is numeric
-					char* holder = new char[++objvsize+1]; // apppend it
-					for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
-					holder[objvsize-1]=inC;
-					if(objvsize > 1)free(objvalue);
-					objvalue=holder;
+					*(double*)&objvalue[1] = *(double*)&objvalue[1] * 10 + (inC - '0');
 				}
 				else if(isFrivolous(inC));
 				else{
@@ -264,7 +268,8 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 
 			if(holder[i]->value){//if its a regular object
 					if(!holder[i]->parent && layers.empty()){
-						outlen += fprintf(target, "%s %c %s%c\n", holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+						if(holder[i]->value[0])outlen += fprintf(target, "%s %c %s%c\n", holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+						else outlen += fprintf(target, "%s %c %f%c\n", holder[i]->name, CORRELATOR, *(double*)&holder[i]->value[1], TERMINATOR);
 						holder[i]=NULL;
 					}
 					else if(holder[i]->parent == layers.top()){
