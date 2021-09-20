@@ -56,18 +56,19 @@ avf::Entry* avf::load(FILE* target){
 	unsigned long objnsize=0;
 	unsigned long objvsize=0;
 	char* objname;
-	char* objvalue; 	
+	char* objstring;
+	double objvalue;
 	std::stack<avf::Entry*> objects;
 	inC = fgetc(target);
 	while(true){
 		// we are entering an infinite loop, since the following code is going to be implemented as a state machine
 		// the loop is going to be broken on a return call
-		//if(state)inC = fgetc(target);
 		#ifdef DEBUG
 		printf("input: %c(%d), state: %d\n", inC=='\n'?'N':inC, (int)inC, state);
 		fflush(stdout);
 		#endif
 		if(inC=='\n')line++;//keep track of lines, will be used to display errors
+		//TODO: above line is prone to bugs. have line counter increment with each state, not like this
 		if(inC==EOF){
 			if(state==SI){
 				return object;
@@ -76,10 +77,10 @@ avf::Entry* avf::load(FILE* target){
 				delete [] object;
 				object = new avf::Entry[1];
 				object[0].name = new char[1];
-				object[0].name[0]=0;
-				object[0].value = new char[200];
-				sprintf((char*)object[0].value, "line %ld: unexpected end-of-file\n", line);
-				object[0].value[199]='\0';
+				object[0].name[0] = 0;
+				object[0].type = avf::Entry::ERROR;
+				object[0].string = new char[200];
+				sprintf(object[0].string, "line %ld: unexpected end-of-file\n\0", line);
 				return object;
 			}
 		}
@@ -128,10 +129,10 @@ avf::Entry* avf::load(FILE* target){
 					delete [] object;
 					object = new avf::Entry[1];
 					object[0].name = new char[1];
-					object[0].name[0]=0;
-					object[0].value = new char[200];
-					sprintf((char*)object[0].value, "line %ld: invalid character (\"%c\") in variable declaration\n", line, inC);
-					object[0].value[199]='\0';
+					object[0].name[0] = 0;
+					object[0].type = avf::Entry::ERROR;
+					object[0].string = new char[200];
+					sprintf(object[0].string, "line %ld: invalid character (\"%c\") in variable declaration\n\0", line, inC);
 					return object;
 				}
 			case CR:
@@ -143,7 +144,7 @@ avf::Entry* avf::load(FILE* target){
 				else if(inC == BRACKETS[0]){
 					outpos++; // record to output array
 					object[outpos-1].name = objname;
-					object[outpos-1].value = NULL;
+					object[outpos-1].value = 0.0;
 					object[outpos].name = NULL;
 					objname = NULL;
 					objnsize = 0;
@@ -154,13 +155,13 @@ avf::Entry* avf::load(FILE* target){
 				}
 				else if(isFrivolous(inC));
 				else {
-					delete []object;
+					delete [] object;
 					object = new avf::Entry[1];
 					object[0].name = new char[1];
 					object[0].name[0]=0;
-					object[0].value =  new char[200];
-					sprintf((char*)object[0].value, "line %ld: expected \"%c\", got \"%c\"\n", line, CORRELATOR, inC);
-					object[0].value[199]='\0';
+					object[0].type = avf::Entry::ERROR;
+					object[0].string = new char[200];
+					sprintf(object[0].string, "line %ld: expected \"%c\", got \"%c\"\n\0", line, CORRELATOR, inC);
 					return object;
 				}
 				inC = fgetc(target);
@@ -168,13 +169,15 @@ avf::Entry* avf::load(FILE* target){
 
 			case SV:
 				if(isFrivolous(inC)); // ignore anything that could not be an object
-				else if(inC == '\"')state = QU;
+				else if(inC == '\"'){
+					state = QU;
+					object[outpos].type = avf::Entry::STRING;
+					objstring=NULL;
+				}
 				else {
 					state = OV;
-					objvalue = (char*)malloc(sizeof(char)+sizeof(double));//we are getting fiddly with memory, but trust me this will work
-					objvalue[0]='\0';
-					objvalue[1]=0.0;
-					//(as long as people read the documentation, that is)
+					object[outpos].type = avf::Entry::VALUE;
+					objvalue = 0.0;
 					break;
 				}
 				inC = fgetc(target);
@@ -182,11 +185,10 @@ avf::Entry* avf::load(FILE* target){
 
 			case OV:
 				if(inC == TERMINATOR){
-					objvalue [objvsize]='\0';
 					state=EE;
 				}
 				else if(inC >= '0' && inC <= '9'){ // if our value is numeric
-					*(double*)&objvalue[1] = *(double*)&objvalue[1] * 10 + (inC - '0');
+					objvalue = objvalue * 10 + (inC - '0');
 				}
 				else if(isFrivolous(inC));
 				else{
@@ -194,9 +196,9 @@ avf::Entry* avf::load(FILE* target){
 					object = new avf::Entry[1];
 					object[0].name = new char[1];
 					object[0].name[0] = 0;
-					object[0].value =  new char[200];
-					sprintf((char*)object[0].value, "line %ld: unexpected value for %s \n", line, objname);
-					object[0].value[199]='\0';
+					object[0].type = avf::Entry::ERROR;
+					object[0].string = new char[200];
+					sprintf(object[0].string, "line %ld: unexpected value for %s\n\0", line, objname);
 					return object;
 				}
 				inC = fgetc(target);
@@ -206,33 +208,36 @@ avf::Entry* avf::load(FILE* target){
 				if(inC == '\\')state = QE; // switch to escape state
 				else {
 					char* holder = new char[++objvsize+1]; // apppend it
-					for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
+					for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objstring[i];
 					holder[objvsize-1]=inC;
-					if(objvsize > 1)free(objvalue);
-					objvalue=holder;
+					if(objvsize > 1)delete [] objstring;
+					objstring=holder;
 				}
 				inC = fgetc(target);
 				break;
 			case QE:{
 				char* holder = new char[++objvsize+1]; // apppend it
-				for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objvalue[i];
+				for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objstring[i];
 				holder[objvsize-1]=inC;
-				if(objvsize > 1)free(objvalue);
-				objvalue=holder;
+				if(objvsize > 1)delete [] objstring;
+				objstring=holder;
 				state = QU;
 				break;
 			}
 			case EE:{
 				outpos++;
 				#ifdef DEBUG
-				printf("creating entry %ld: \"%s\" = \"%s\"\n", outpos, objname, objvalue);
+				if(object[outpos-1].type == avf::Entry::STRING)printf("creating entry %ld: \"%s\" = \"%s\"\n", outpos, objname, objstring);
+				if(object[outpos-1].type == avf::Entry::VALUE)printf("creating entry %ld: \"%s\" = %.2f\n", outpos, objname, objvalue);
 				#endif
 				object[outpos-1].name = objname;
-				object[outpos-1].value = objvalue;
+				if(object[outpos-1].type == avf::Entry::VALUE) object[outpos-1].value = objvalue;
+				else if(object[outpos-1].type == avf::Entry::STRING) object[outpos-1].string = objstring;
 				if(!objects.empty())object[outpos-1].parent = objects.top();
 				else object[outpos-1].parent = NULL;
 				objname = NULL;
-				objvalue = NULL;
+				objstring = NULL;
+				objvalue = 0.0;
 				objnsize = 0;
 				objvsize = 0;
 				state = SI; // rinse and repeat
@@ -241,7 +246,7 @@ avf::Entry* avf::load(FILE* target){
 		}
 	}
 }
-
+/*
 unsigned long avf::write(FILE* target, avf::Entry* values){
 	unsigned long outlen = 0; // tracks the number of characters written
 
@@ -338,4 +343,5 @@ char* avf::get(FILE* target, char* key){
 int avf::put(FILE* target, char* key, char* value){
 	return 0;
 }
+*/
 //TODO: write these functions

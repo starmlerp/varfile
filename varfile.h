@@ -6,7 +6,16 @@ namespace avf{
 	class Entry{
 		public:
 		char* name;
-		char* value;
+		enum{
+			VALUE,
+			STRING,
+			OBJECT,
+			ERROR
+		}type;
+		union{
+			double value;
+			char* string;
+		};
 		Entry* parent;
 	};
 	Entry* load(FILE* target);

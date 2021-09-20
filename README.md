@@ -1,4 +1,5 @@
 # About
+TODO: this manual is invalid now. rewrite it
 Varfile is a static C++ library, made with intention of abstracting
 file loading functionality in game engines.
 
