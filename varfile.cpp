@@ -54,7 +54,8 @@ avf::Entry* avf::load(FILE* target){
 	long line=1;
 	// element holder values
 	unsigned long objnsize=0;
-	unsigned long objvsize=0;
+	unsigned long objssize=0;
+	unsigned long objvfsize=1;
 	char* objname;
 	char* objstring;
 	double objvalue;
@@ -144,6 +145,7 @@ avf::Entry* avf::load(FILE* target){
 				else if(inC == BRACKETS[0]){
 					outpos++; // record to output array
 					object[outpos-1].name = objname;
+					object[outpos-1].type = avf::Entry::OBJECT;
 					object[outpos-1].value = 0.0;
 					object[outpos].name = NULL;
 					objname = NULL;
@@ -182,10 +184,12 @@ avf::Entry* avf::load(FILE* target){
 				}
 				inC = fgetc(target);
 				break;
-
 			case OV:
 				if(inC == TERMINATOR){
-					state=EE;
+					state = EE;
+				}
+				else if(inC == DECIMAL){
+					state = OF;
 				}
 				else if(inC >= '0' && inC <= '9'){ // if our value is numeric
 					objvalue = objvalue * 10 + (inC - '0');
@@ -198,28 +202,52 @@ avf::Entry* avf::load(FILE* target){
 					object[0].name[0] = 0;
 					object[0].type = avf::Entry::ERROR;
 					object[0].string = new char[200];
-					sprintf(object[0].string, "line %ld: unexpected value for %s\n\0", line, objname);
+					sprintf(object[0].string, "line %ld: unexpected value for %s: %c\n\0", line, objname, inC);
 					return object;
 				}
 				inC = fgetc(target);
 				break;
+			case OF:
+				if(inC >= '0' && inC <= '9'){
+					objvfsize*=10;
+					objvalue = objvalue * 10 + (inC -'0');
+				}
+				else if(isFrivolous(inC));
+				else if(inC == TERMINATOR){
+					state = EE;
+					objvalue /= objvfsize;
+					objvfsize = 1;
+				}
+				else{
+					free(object);
+					object = new avf::Entry[1];
+					object[0].name = new char[1];
+					object[0].name[0] = 0;
+					object[0].type = avf::Entry::ERROR;
+					object[0].string = new char[200];
+					sprintf(object[0].string, "line %ld: unexpected value for %s: %c\n\0", line, objname, inC);
+					return object;
+				}
+				inC = fgetc(target);
+				break;
+
 			case QU:
 				if(inC == QUOTE)state = OV; // switch to end state: we know nothing more is here
-				if(inC == '\\')state = QE; // switch to escape state
+				else if(inC == '\\')state = QE; // switch to escape state
 				else {
-					char* holder = new char[++objvsize+1]; // apppend it
-					for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objstring[i];
-					holder[objvsize-1]=inC;
-					if(objvsize > 1)delete [] objstring;
+					char* holder = new char[++objssize+1]; // apppend it
+					for(unsigned long i = 0; i < objssize-1;i++)holder[i]=objstring[i];
+					holder[objssize-1]=inC;
+					if(objssize > 1)delete [] objstring;
 					objstring=holder;
 				}
 				inC = fgetc(target);
 				break;
 			case QE:{
-				char* holder = new char[++objvsize+1]; // apppend it
-				for(unsigned long i = 0; i < objvsize-1;i++)holder[i]=objstring[i];
-				holder[objvsize-1]=inC;
-				if(objvsize > 1)delete [] objstring;
+				char* holder = new char[++objssize+1]; // apppend it
+				for(unsigned long i = 0; i < objssize-1;i++)holder[i]=objstring[i];
+				holder[objssize-1]=inC;
+				if(objssize > 1)delete [] objstring;
 				objstring=holder;
 				state = QU;
 				break;
@@ -239,14 +267,13 @@ avf::Entry* avf::load(FILE* target){
 				objstring = NULL;
 				objvalue = 0.0;
 				objnsize = 0;
-				objvsize = 0;
+				objssize = 0;
 				state = SI; // rinse and repeat
 				break;
 			}
 		}
 	}
 }
-/*
 unsigned long avf::write(FILE* target, avf::Entry* values){
 	unsigned long outlen = 0; // tracks the number of characters written
 
@@ -266,37 +293,38 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 		#endif
 		if(holder[i]){
 			#ifdef DEBUG
-			char throwaway;
-			if(!layers.empty())printf("stack: %ld\n", layers.top());
-			scanf("%c", &throwaway);
+			printf("processing element %ld\n", i);
+			//if(!layers.empty())printf("stack: %ld\n", layers.top());
 			#endif
 
-			if(holder[i]->value){//if its a regular object
+			if(holder[i]->type != avf::Entry::OBJECT){//if its a regular entry
+					char* tabs;
 					if(!holder[i]->parent && layers.empty()){
-						if(holder[i]->value[0])outlen += fprintf(target, "%s %c %s%c\n", holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
-						else outlen += fprintf(target, "%s %c %f%c\n", holder[i]->name, CORRELATOR, *(double*)&holder[i]->value[1], TERMINATOR);
-						holder[i]=NULL;
+						tabs = new char[1];
+						tabs[0]='\0';
 					}
 					else if(holder[i]->parent == layers.top()){
-						char* tabs = new char[layers.size()+1];
+						tabs = new char[layers.size()+1];
 						for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
 						tabs[layers.size()]='\0';
-						outlen += fprintf(target, "%s%s %c %s%c\n",tabs, holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
-						holder[i]=NULL;
 					}
+					if(holder[i]->type==avf::Entry::VALUE)
+						outlen += fprintf(target, "%s%s %c %f%c\n", tabs, holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+					else if(holder[i]->type==avf::Entry::STRING)
+						outlen += fprintf(target, "%s%s %c \"%s\"%c\n", tabs, holder[i]->name, CORRELATOR, holder[i]->string, TERMINATOR);
+					delete [] tabs;
+					holder[i]=NULL;
 					i++;
 			}
 			else{//if its a nest
 				if(!holder[i]->parent && layers.empty()){
 					outlen += fprintf(target, "%s %c\n", holder[i]->name, BRACKETS[0]);
-				
 					#ifdef DEBUG
 					printf("object definition: %ld\n", holder[i]);
 					#endif
 					layers.push(holder[i]);
 					holder[i]=NULL;
 					i = 0;
-					
 				}
 				else if(holder[i]->parent == layers.top()){
 					char* tabs = new char[layers.size()+1];
@@ -310,10 +338,9 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 					holder[i]=NULL;
 					i = 0;
 				}
-				else i++;
 			}
 
-			if( i >= Elen - 1 && !layers.empty() ){
+			if( i > Elen - 1 && !layers.empty() ){
 				#ifdef DEBUG
 				printf("loaded all objects in current layer. popping stack...\n");
 				#endif
@@ -332,7 +359,9 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 			printf("already processed. skipping...\n");
 			#endif
 		}
+		#ifdef DEBUG
 		fflush(target);
+		#endif
 	}
 	return outlen;
 }
@@ -343,5 +372,4 @@ char* avf::get(FILE* target, char* key){
 int avf::put(FILE* target, char* key, char* value){
 	return 0;
 }
-*/
 //TODO: write these functions
