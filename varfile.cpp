@@ -308,8 +308,16 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 						for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
 						tabs[layers.size()]='\0';
 					}
-					if(holder[i]->type==avf::Entry::VALUE)
-						outlen += fprintf(target, "%s%s %c %f%c\n", tabs, holder[i]->name, CORRELATOR, holder[i]->value, TERMINATOR);
+					if(holder[i]->type==avf::Entry::VALUE){
+						outlen += fprintf(target, "%s%s %c %ld%c", tabs, holder[i]->name, CORRELATOR, (long)holder[i]->value, DECIMAL);
+						double fp = holder[i]->value - (long)holder[i]->value;
+						while(fp != 0){
+							fp *= 10;
+							fprintf(target, "%ld", (long)fp);
+							fp -= (long)fp;
+						}
+						outlen += fprintf(target, "%c\n", TERMINATOR);
+					}
 					else if(holder[i]->type==avf::Entry::STRING)
 						outlen += fprintf(target, "%s%s %c \"%s\"%c\n", tabs, holder[i]->name, CORRELATOR, holder[i]->string, TERMINATOR);
 					delete [] tabs;
