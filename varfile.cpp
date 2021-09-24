@@ -11,6 +11,8 @@
 #define QUOTE '\"'
 #define BRACKETS "{}"
 
+//#define DEBUG
+
 int isFrivolous(char inT){//this is a private function, neccesary only for the function of this library, as such it is not neccesary to make it visible to the main code
 	for(unsigned long i=0; FRIVOLOUS[i]; i++)if(inT == FRIVOLOUS[i])return 1;
 	return 0;
@@ -171,10 +173,15 @@ avf::Entry* avf::load(FILE* target){
 
 			case SV:
 				if(isFrivolous(inC)); // ignore anything that could not be an object
-				else if(inC == '\"'){
+				else if(inC == QUOTE){
 					state = QU;
 					object[outpos].type = avf::Entry::STRING;
-					objstring=NULL;
+					objstring = NULL;
+				}
+				else if(inC == '-'){
+					state = OV;
+					object[outpos].type = avf::Entry::VALUE;
+					objvfsize = -1;
 				}
 				else {
 					state = OV;
@@ -186,6 +193,8 @@ avf::Entry* avf::load(FILE* target){
 				break;
 			case OV:
 				if(inC == TERMINATOR){
+					objvalue *= objvfsize;
+					objvfsize = 1;
 					state = EE;
 				}
 				else if(inC == DECIMAL){
@@ -250,6 +259,7 @@ avf::Entry* avf::load(FILE* target){
 				if(objssize > 1)delete [] objstring;
 				objstring=holder;
 				state = QU;
+				inC = fgetc(target);
 				break;
 			}
 			case EE:{
@@ -293,12 +303,15 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 		#endif
 		if(holder[i]){
 			#ifdef DEBUG
-			printf("processing element %ld\n", i);
+			//printf("processing element %ld\n", i);
 			//if(!layers.empty())printf("stack: %ld\n", layers.top());
 			#endif
 
 			if(holder[i]->type != avf::Entry::OBJECT){//if its a regular entry
-					char* tabs;
+					#ifdef DEBUG
+					printf("element %d is a value\n", i);
+					#endif
+					char* tabs = NULL;
 					if(!holder[i]->parent && layers.empty()){
 						tabs = new char[1];
 						tabs[0]='\0';
@@ -306,22 +319,37 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 					else if(holder[i]->parent == layers.top()){
 						tabs = new char[layers.size()+1];
 						for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
-						tabs[layers.size()]='\0';
+						tabs[layers.size()] = '\0';
 					}
-					if(holder[i]->type==avf::Entry::VALUE){
-						outlen += fprintf(target, "%s%s %c %ld%c", tabs, holder[i]->name, CORRELATOR, (long)holder[i]->value, DECIMAL);
+					if(holder[i]->type==avf::Entry::VALUE && tabs){
+						outlen += fprintf(target, "%s%s %c %ld", tabs, holder[i]->name, CORRELATOR, (long)holder[i]->value);
+						delete [] tabs;
 						double fp = holder[i]->value - (long)holder[i]->value;
-						while(fp != 0){
+						if(fp!=0)fprintf(target, "%c", DECIMAL);
+						int dp=0;
+						char outf[15];
+						short outfs=0;
+						outf[0]='\0';
+						while(fp != 0 && dp < 15){
 							fp *= 10;
-							fprintf(target, "%ld", (long)fp);
+							outf[outfs]=(char)((long)fp+'0');
+							outf[++outfs]='\0';
+							if( (long)fp > 0){
+								fprintf(target, "%s", outf);
+								outfs=0;
+								outf[0]='\0';
+							}
 							fp -= (long)fp;
+							dp++;
 						}
 						outlen += fprintf(target, "%c\n", TERMINATOR);
+						holder[i] = NULL;
 					}
-					else if(holder[i]->type==avf::Entry::STRING)
+					else if(holder[i]->type==avf::Entry::STRING && tabs){
 						outlen += fprintf(target, "%s%s %c \"%s\"%c\n", tabs, holder[i]->name, CORRELATOR, holder[i]->string, TERMINATOR);
-					delete [] tabs;
-					holder[i]=NULL;
+						delete [] tabs;
+						holder[i] = NULL;
+					}
 					i++;
 			}
 			else{//if its a nest
@@ -346,6 +374,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 					holder[i]=NULL;
 					i = 0;
 				}
+				else i++;
 			}
 
 			if( i > Elen - 1 && !layers.empty() ){
@@ -358,6 +387,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
 				tabs[layers.size()]='\0';
 				outlen += fprintf(target, "%s%c\n", tabs, BRACKETS[1]);
+				delete [] tabs;
 				i=0;
 			}
 		}
