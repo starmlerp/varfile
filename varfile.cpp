@@ -14,30 +14,33 @@
 //#define DEBUG
 
 int isFrivolous(char inT){//this is a private function, neccesary only for the function of this library, as such it is not neccesary to make it visible to the main code
-	for(unsigned long i=0; FRIVOLOUS[i]; i++)if(inT == FRIVOLOUS[i])return 1;
+	for(size_t i=0; FRIVOLOUS[i]; i++)if(inT == FRIVOLOUS[i])return 1;
 	return 0;
 }
 
 avf::Entry* avf::load(FILE* target){
 	rewind(target);
-	unsigned long outsize = 0;
+	size_t outsize = 0;
 	char inC;
+	char quotes=0;
 	do{
 		inC = fgetc(target);
-		if(inC == TERMINATOR || inC == BRACKETS[0])outsize++; // count up all of the entries
+		if(!quotes && (inC == TERMINATOR || inC == BRACKETS[0]))outsize++; // count up all of the entries
+		if(inC == QUOTE)quotes = 1 - quotes;
+		if(inC == '\\')inC = fgetc(target);
 	}while(inC != EOF);// runs through the whole file
 	#ifdef DEBUG
 	printf("counted entries: %ld\n", outsize);
 	#endif
 	rewind(target);
 	inC = 0;
-	unsigned long outpos = 0;
+	size_t outpos = 0;
 	avf::Entry* object = new avf::Entry[outsize+1];
 	object[0].name = NULL;
 	object[outsize].name=NULL;
 	//TODO: implement proper parsing to detect invalid variable names (starting with numbers, including non-aphlanumerical characters etc.)
 	
-	enum States{// we shall represent states using enums and switch-cases
+	enum {// we shall represent states using enums and switch-cases
 		EE, // end of entry
 		SI, // seek for the next identifier
 		ID, // identifier
@@ -50,14 +53,13 @@ avf::Entry* avf::load(FILE* target){
 		QE, // escaped character in quotes
 		BL, // block (defines multi member objects)
 		CM  // comment
-	};;
-	States state = SI;
+	}state = SI;
 
 	long line=1;
 	// element holder values
-	unsigned long objnsize=0;
-	unsigned long objssize=0;
-	unsigned long objvfsize=1;
+	size_t objnsize=0, 
+	       objssize=0, 
+	       objvfsize=1;
 	char* objname;
 	char* objstring;
 	double objvalue;
@@ -94,9 +96,19 @@ avf::Entry* avf::load(FILE* target){
 					objects.pop();//pop the stack
 					inC = fgetc(target);
 				}
-				else{
+				else if(inC >= 'a' && inC <= 'z' || inC >= 'A' && inC <= 'Z'){
 					state = ID;
 				}// otherwise assume we reached an identifier
+				else {
+					delete [] object;
+					object = new avf::Entry[1];
+					object[0].name = new char[1];
+					object[0].name[0] = 0;
+					object[0].type = avf::Entry::ERROR;
+					object[0].string = new char[200];
+					sprintf(object[0].string, "line %ld: identifier cannot start with \"%c\"\n\0", line, inC);
+					return object;
+				}
 				break;
 			
 			case ID:
@@ -114,7 +126,7 @@ avf::Entry* avf::load(FILE* target){
 				if(inC >= 'A' && inC <= 'Z' || inC >= 'a' && inC <= 'z' || inC >= '0' && inC <= '9'){// if its an alphanumerical character
 					char* holder = new char[++objnsize+1];// add it to the checking stream
 					//holder is an additional character long in order to hold null terminator
-					for(unsigned long i = 0; i < objnsize-1;i++)holder[i]=objname[i];
+					for(size_t i = 0; i < objnsize-1;i++)holder[i]=objname[i];
 					holder[objnsize-1]=inC;
 					if(objnsize > 1)delete [] objname;
 					objname=holder;//dirty dirty append
@@ -245,7 +257,7 @@ avf::Entry* avf::load(FILE* target){
 				else if(inC == '\\')state = QE; // switch to escape state
 				else {
 					char* holder = new char[++objssize+1]; // apppend it
-					for(unsigned long i = 0; i < objssize-1;i++)holder[i]=objstring[i];
+					for(size_t i = 0; i < objssize-1;i++)holder[i]=objstring[i];
 					holder[objssize-1]=inC;
 					if(objssize > 1)delete [] objstring;
 					objstring=holder;
@@ -254,7 +266,7 @@ avf::Entry* avf::load(FILE* target){
 				break;
 			case QE:{
 				char* holder = new char[++objssize+1]; // apppend it
-				for(unsigned long i = 0; i < objssize-1;i++)holder[i]=objstring[i];
+				for(size_t i = 0; i < objssize-1;i++)holder[i]=objstring[i];
 				holder[objssize-1]=inC;
 				if(objssize > 1)delete [] objstring;
 				objstring=holder;
@@ -262,7 +274,7 @@ avf::Entry* avf::load(FILE* target){
 				inC = fgetc(target);
 				break;
 			}
-			case EE:{
+			case EE:
 				outpos++;
 				#ifdef DEBUG
 				if(object[outpos-1].type == avf::Entry::STRING)printf("creating entry %ld: \"%s\" = \"%s\"\n", outpos, objname, objstring);
@@ -280,23 +292,22 @@ avf::Entry* avf::load(FILE* target){
 				objssize = 0;
 				state = SI; // rinse and repeat
 				break;
-			}
 		}
 	}
 }
-unsigned long avf::write(FILE* target, avf::Entry* values){
-	unsigned long outlen = 0; // tracks the number of characters written
+size_t avf::write(FILE* target, avf::Entry* values){
+	size_t outlen = 0; // tracks the number of characters written
 
-	unsigned long Elen;
+	size_t Elen;
 	for(Elen = 0; values[Elen].name; Elen++);
 	#ifdef DEBUG
 	printf("%ld\n", Elen);
 	#endif
 	avf::Entry** holder = new avf::Entry*[Elen+1];//create references to the input array. they will be removed as they are being written
-	for(unsigned long i = 0; i < Elen; i++)holder[i] = &values[i];
+	for(size_t i = 0; i < Elen; i++)holder[i] = &values[i];
 	
 	std::stack<avf::Entry*> layers;
-	unsigned long i = 0;
+	size_t i = 0;
 	while(i < Elen || !layers.empty()){
 		#ifdef DEBUG
 		printf("elem: %ld\n", i);
@@ -318,7 +329,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 					}
 					else if(holder[i]->parent == layers.top()){
 						tabs = new char[layers.size()+1];
-						for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+						for(size_t j = 0; j < layers.size(); j++)tabs[j]='\t';
 						tabs[layers.size()] = '\0';
 					}
 					if(holder[i]->type==avf::Entry::VALUE && tabs){
@@ -364,7 +375,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 				}
 				else if(holder[i]->parent == layers.top()){
 					char* tabs = new char[layers.size()+1];
-					for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+					for(size_t j = 0; j < layers.size(); j++)tabs[j]='\t';
 					tabs[layers.size()]='\0';
 					outlen += fprintf(target, "%s%s %c\n", tabs, holder[i]->name, BRACKETS[0]);
 					#ifdef DEBUG
@@ -384,7 +395,7 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 
 				layers.pop();
 				char* tabs = new char[layers.size()+1];
-				for(unsigned long j = 0; j < layers.size(); j++)tabs[j]='\t';
+				for(size_t j = 0; j < layers.size(); j++)tabs[j]='\t';
 				tabs[layers.size()]='\0';
 				outlen += fprintf(target, "%s%c\n", tabs, BRACKETS[1]);
 				delete [] tabs;
@@ -403,11 +414,6 @@ unsigned long avf::write(FILE* target, avf::Entry* values){
 	}
 	return outlen;
 }
-
-char* avf::get(FILE* target, char* key){
+unsigned long avf::update(FILE* target, avf::Entry* values){
 	return 0;
 }
-int avf::put(FILE* target, char* key, char* value){
-	return 0;
-}
-//TODO: write these functions
