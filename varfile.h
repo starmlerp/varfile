@@ -9,13 +9,14 @@ namespace avf{
 		enum{
 			VALUE,
 			STRING,
-			OBJECT,
-			ERROR
+			OBJECT, // nested object type
+			ERROR,
+			EOE // end-of-entries
 		}type;
 		union{
 			double value;
 			char* string;
-			Entry* children;
+			Entry** children; // array of pointers
 		};
 		Entry* parent;
 	};

@@ -11,6 +11,8 @@
 #define QUOTE '\"'
 #define BRACKETS "{}"
 
+#define FPRECISION 10
+
 //#define DEBUG
 
 int isFrivolous(char inT){//this is a private function, neccesary only for the function of this library, as such it is not neccesary to make it visible to the main code
@@ -27,7 +29,7 @@ avf::Entry* avf::load(FILE* target){
 		inC = fgetc(target);
 		if(!quotes && (inC == TERMINATOR || inC == BRACKETS[0]))outsize++; // count up all of the entries
 		if(inC == QUOTE)quotes = 1 - quotes;
-		if(inC == '\\')inC = fgetc(target);
+		if(inC == '\\')fgetc(target);
 	}while(inC != EOF);// runs through the whole file
 	#ifdef DEBUG
 	printf("counted entries: %ld\n", outsize);
@@ -37,7 +39,8 @@ avf::Entry* avf::load(FILE* target){
 	size_t outpos = 0;
 	avf::Entry* object = new avf::Entry[outsize+1];
 	object[0].name = NULL;
-	object[outsize].name=NULL;
+	object[outsize].name = NULL;
+	object[outsize].type = avf::Entry::EOE;
 	//TODO: implement proper parsing to detect invalid variable names (starting with numbers, including non-aphlanumerical characters etc.)
 	
 	enum {// we shall represent states using enums and switch-cases
@@ -64,6 +67,7 @@ avf::Entry* avf::load(FILE* target){
 	char* objstring;
 	double objvalue;
 	std::stack<avf::Entry*> objects;
+	std::stack<size_t> ocsize;
 	inC = fgetc(target);
 	while(true){
 		// we are entering an infinite loop, since the following code is going to be implemented as a state machine
@@ -75,10 +79,10 @@ avf::Entry* avf::load(FILE* target){
 		if(inC=='\n')line++;//keep track of lines, will be used to display errors
 		//TODO: above line is prone to bugs. have line counter increment with each state, not like this
 		if(inC==EOF){
-			if(state==SI){
+			if(state==SI && objects.empty()){
 				return object;
 			}
-			else{
+			else if(state != SI){
 				delete [] object;
 				object = new avf::Entry[1];
 				object[0].name = new char[1];
@@ -88,12 +92,23 @@ avf::Entry* avf::load(FILE* target){
 				sprintf(object[0].string, "line %ld: unexpected end-of-file\n\0", line);
 				return object;
 			}
+			else if(!objects.empty()){
+				delete [] object;
+				object = new avf::Entry[1];
+				object[0].name = new char[1];
+				object[0].name[0] = 0;
+				object[0].type = avf::Entry::ERROR;
+				object[0].string = new char[200];
+				sprintf(object[0].string, "line %ld: missing %ld enclosing brackets\n\0", line, objects.size());
+				return object;
+			}
 		}
 		switch(state){
 			case SI:
 				if(isFrivolous(inC))inC = fgetc(target);
 				else if(inC == BRACKETS[1]){ // if brace closing is found
 					objects.pop();//pop the stack
+					ocsize.pop();
 					inC = fgetc(target);
 				}
 				else if(inC >= 'a' && inC <= 'z' || inC >= 'A' && inC <= 'Z'){
@@ -164,9 +179,51 @@ avf::Entry* avf::load(FILE* target){
 					object[outpos].name = NULL;
 					objname = NULL;
 					objnsize = 0;
+					
 					if(!objects.empty())object[outpos-1].parent=objects.top(); // if theres something in the stack, put it in as a parent
 					else object[outpos-1].parent = NULL;
+					
 					objects.push(&object[outpos-1]);
+					
+					size_t esize=0;
+					long objpos = ftell(target);
+					int brackets = 0;
+					size_t blayers=0;
+
+					while(blayers || brackets ||  inC != BRACKETS[1]){//load the children elements into array
+						inC = fgetc(target);
+						#ifdef DEBUG
+						printf("%ldinput: %c(%d), substate: %d\n", blayers, inC=='\n'?'N':inC, (int)inC, brackets);
+						fflush(stdout);
+						#endif
+					
+						if(inC == QUOTE)brackets = 1 - brackets;
+						else if(inC == TERMINATOR && !blayers && !brackets)esize++;
+						else if(inC == BRACKETS[0])blayers++;
+						else if(inC == BRACKETS[1])if(blayers)blayers--;
+						else if(inC == EOF){
+							delete [] object;
+							object = new avf::Entry[1];
+							object[0].name = new char[1];
+							object[0].name[0]=0;
+							object[0].type = avf::Entry::ERROR;
+							object[0].string = new char[200];
+							sprintf(object[0].string, "line %ld: missing enclosing brackets\n\0", line);
+							return object;
+						}
+						else if(inC == '\\')fgetc(target);
+					}
+					#ifdef DEBUG
+					printf("entries in this layer: %ld\n", esize);
+					#endif
+					objects.top()->children = new avf::Entry*[esize+1];
+					for(size_t i = 0; i < esize; i++)objects.top()->children[i] = NULL;
+					objects.top()->children[esize] = new avf::Entry;
+					objects.top()->children[esize]->type = avf::Entry::EOE;
+					
+					fseek(target, objpos, SEEK_SET);
+					ocsize.push(esize);
+					
 					state = SI; // rinse and repeat
 				}
 				else if(isFrivolous(inC));
@@ -283,7 +340,26 @@ avf::Entry* avf::load(FILE* target){
 				object[outpos-1].name = objname;
 				if(object[outpos-1].type == avf::Entry::VALUE) object[outpos-1].value = objvalue;
 				else if(object[outpos-1].type == avf::Entry::STRING) object[outpos-1].string = objstring;
-				if(!objects.empty())object[outpos-1].parent = objects.top();
+				if(!objects.empty()){
+					object[outpos-1].parent = objects.top();
+					size_t cpos;
+					for(cpos = 0; objects.top()->children[cpos]; cpos++){
+						if(!objects.top()->children[cpos]){
+							if(objects.top()->children[cpos]->type == avf::Entry::EOE){
+								//this should really not happen, meaning we fucked something up big time
+								delete [] object;
+								object = new avf::Entry[1];
+								object[0].name = new char[1];
+								object[0].name[0] = 0;
+								object[0].type = avf::Entry::ERROR;
+								object[0].string = new char[200];
+								sprintf(object[0].string, "internal error: parent has no more memory to store pointer to child\n\0", line, objname, inC);
+								return object;
+							}
+						}
+					}
+					objects.top()->children[cpos] = &object[outpos-1];
+				}
 				else object[outpos-1].parent = NULL;
 				objname = NULL;
 				objstring = NULL;
@@ -295,11 +371,12 @@ avf::Entry* avf::load(FILE* target){
 		}
 	}
 }
+
 size_t avf::write(FILE* target, avf::Entry* values){
 	size_t outlen = 0; // tracks the number of characters written
 
 	size_t Elen;
-	for(Elen = 0; values[Elen].name; Elen++);
+	for(Elen = 0; values[Elen].type != avf::Entry::EOE; Elen++);
 	#ifdef DEBUG
 	printf("%ld\n", Elen);
 	#endif
@@ -317,8 +394,10 @@ size_t avf::write(FILE* target, avf::Entry* values){
 			//printf("processing element %ld\n", i);
 			//if(!layers.empty())printf("stack: %ld\n", layers.top());
 			#endif
-
-			if(holder[i]->type != avf::Entry::OBJECT){//if its a regular entry
+			if(holder[i]->type == avf::Entry::EOE){
+				printf("EOE\n");
+			}
+			else if(holder[i]->type != avf::Entry::OBJECT){//if its a regular entry
 					#ifdef DEBUG
 					printf("element %d is a value\n", i);
 					#endif
@@ -338,10 +417,10 @@ size_t avf::write(FILE* target, avf::Entry* values){
 						double fp = holder[i]->value - (long)holder[i]->value;
 						if(fp!=0)fprintf(target, "%c", DECIMAL);
 						int dp=0;
-						char outf[15];
+						char outf[FPRECISION];
 						short outfs=0;
 						outf[0]='\0';
-						while(fp != 0 && dp < 15){
+						while(fp != 0 && dp < FPRECISION){
 							fp *= 10;
 							outf[outfs]=(char)((long)fp+'0');
 							outf[++outfs]='\0';
@@ -387,26 +466,24 @@ size_t avf::write(FILE* target, avf::Entry* values){
 				}
 				else i++;
 			}
-
-			if( i > Elen - 1 && !layers.empty() ){
-				#ifdef DEBUG
-				printf("loaded all objects in current layer. popping stack...\n");
-				#endif
-
-				layers.pop();
-				char* tabs = new char[layers.size()+1];
-				for(size_t j = 0; j < layers.size(); j++)tabs[j]='\t';
-				tabs[layers.size()]='\0';
-				outlen += fprintf(target, "%s%c\n", tabs, BRACKETS[1]);
-				delete [] tabs;
-				i=0;
-			}
 		}
 		else {
 			i++;
 			#ifdef DEBUG
 			printf("already processed. skipping...\n");
 			#endif
+		}
+		if( i >= Elen && !layers.empty()){
+			#ifdef DEBUG
+			printf("loaded all objects in current layer. popping stack...\n");
+			#endif
+			layers.pop();
+			char* tabs = new char[layers.size()+1];
+			for(size_t j = 0; j < layers.size(); j++)tabs[j]='\t';
+			tabs[layers.size()]='\0';
+			outlen += fprintf(target, "%s%c\n", tabs, BRACKETS[1]);
+			delete [] tabs;
+			i=0;
 		}
 		#ifdef DEBUG
 		fflush(target);
