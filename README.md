@@ -56,7 +56,7 @@ the entry was found with. the enum `avf::Entry:type` determines the type of the
 value the object holds:
 if it is `avf::Entry::VALUE`, then `avf::Entry::value` holds a `double` value,
 if it is `avf::Entry::STRING`, then `avf::Entry::string` holds a `char*` array,
-if it is `avf::Entry::OBJECT`, then object represents a nested object,
+if it is `avf::Entry::OBJECT`, then object represents a nested object, and `avf::Entry::children` is a `avf::Entry**` array of pointers to children of this object
 if it is `avf::Entry::ERROR`, then the returned pointer should point to a singular object, with `avf::Entry::string` containing the error message
 
 library assumes stream is in read mode.
