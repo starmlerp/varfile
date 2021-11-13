@@ -25,5 +25,7 @@ namespace avf{
 	unsigned long write(FILE* target, Entry* values);
 
 	unsigned long update(FILE* target, Entry* values);
+
+	Entry* get(Entry* values, char* name);
 }
 #endif

@@ -491,6 +491,21 @@ size_t avf::write(FILE* target, avf::Entry* values){
 	}
 	return outlen;
 }
+
+avf::Entry* avf::get(avf::Entry* values, char* name){
+	for(size_t i = 0; values[i].type != avf::Entry::EOE; i++){
+		int valid = 1;
+		for(size_t j = 0; values[i].name[j] && name[j]; j++){
+			if(values[i].name[j] != name[j]){
+				valid = 0;
+				break;
+			}
+		}
+		if(valid)return &values[i];
+	}
+	return NULL;
+}
+
 unsigned long avf::update(FILE* target, avf::Entry* values){
 	return 0;
 }
